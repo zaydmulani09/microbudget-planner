@@ -57,6 +57,22 @@
                         <span>Transactions</span>
                     </span>
                 </button>
+                <button class="nav-btn liquid-nav-btn" data-view="goals">
+                    <div class="liquid-bg"></div>
+                    <div class="liquid-glass-fx"></div>
+                    <span class="liquid-content">
+                        <i data-lucide="target"></i>
+                        <span>Goals</span>
+                    </span>
+                </button>
+                <button class="nav-btn liquid-nav-btn" data-view="achievements">
+                    <div class="liquid-bg"></div>
+                    <div class="liquid-glass-fx"></div>
+                    <span class="liquid-content">
+                        <i data-lucide="trophy"></i>
+                        <span>Badges</span>
+                    </span>
+                </button>
                 <button class="nav-btn liquid-nav-btn" data-view="settings">
                     <div class="liquid-bg"></div>
                     <div class="liquid-glass-fx"></div>
@@ -147,6 +163,37 @@
 
                 <div class="transaction-list-full glass-panel">
                     <div id="full-tx-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Goals View -->
+            <section id="view-goals" class="view fade-in hidden">
+                <header class="view-header">
+                    <h2 class="view-title">Vision.</h2>
+                    <p class="view-subtitle">Set goals and track your progress.</p>
+                </header>
+                <div class="goals-grid" id="goals-list">
+                    <!-- Populated by JS -->
+                </div>
+            </section>
+
+            <!-- Achievements View -->
+            <section id="view-achievements" class="view fade-in hidden">
+                <header class="view-header">
+                    <h2 class="view-title">Growth.</h2>
+                    <p class="view-subtitle">Your journey and milestones.</p>
+                </header>
+                <div class="achievements-container glass-panel p-6">
+                    <div class="streak-banner mb-8">
+                        <div class="streak-icon"><i data-lucide="flame"></i></div>
+                        <div class="streak-info">
+                            <h4 id="streak-count">0 Day Streak</h4>
+                            <p class="text-xs text-muted">Log daily to keep it alive!</p>
+                        </div>
+                    </div>
+                    <div class="badges-grid" id="badges-list">
                         <!-- Populated by JS -->
                     </div>
                 </div>
@@ -257,8 +304,42 @@
                     <input type="text" id="tx-note" placeholder="What was this for?">
                 </div>
 
+                <div class="form-group">
+                    <label>Receipt Image</label>
+                    <div class="drop-zone" id="drop-zone">
+                        <span class="drop-zone-prompt">Drop image or click to upload</span>
+                        <input type="file" id="tx-image" class="hidden" accept="image/*">
+                        <div id="image-preview" class="hidden"></div>
+                    </div>
+                </div>
+
+                <div class="flex-row gap-4 mb-4">
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="tx-recurring">
+                        <span class="checkmark"></span>
+                        Recurring
+                    </label>
+                    <label class="checkbox-container">
+                        <input type="checkbox" id="tx-pinned">
+                        <span class="checkmark"></span>
+                        Pin to Top
+                    </label>
+                </div>
+
                 <button type="submit" class="btn btn-primary w-full mt-4">Save Transaction</button>
             </form>
+        </div>
+    </div>
+
+    <!-- Tutorial Overlay -->
+    <div id="tutorial-overlay" class="modal-overlay hidden">
+        <div class="modal glass-panel tutorial-modal">
+            <h3 id="tutorial-title">Welcome!</h3>
+            <p id="tutorial-text" class="mb-6"></p>
+            <div class="flex-between">
+                <button class="btn btn-outline" id="tutorial-skip">Skip</button>
+                <button class="btn btn-primary" id="tutorial-next">Next</button>
+            </div>
         </div>
     </div>
 
