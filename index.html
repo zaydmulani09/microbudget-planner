@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MicroBudget Planner</title>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body>
+    <!-- SVG Filter for Liquid Glass Button -->
+    <svg class="hidden-svg">
+        <defs>
+            <filter id="container-glass" x="0%" y="0%" width="100%" height="100%" colorInterpolationFilters="sRGB">
+                <feTurbulence type="fractalNoise" baseFrequency="0.05 0.05" numOctaves="1" seed="1" result="turbulence" />
+                <feGaussianBlur in="turbulence" stdDeviation="2" result="blurredNoise" />
+                <feDisplacementMap in="SourceGraphic" in2="blurredNoise" scale="40" xChannelSelector="R" yChannelSelector="B" result="displaced" />
+                <feGaussianBlur in="displaced" stdDeviation="3" result="finalBlur" />
+                <feComposite in="finalBlur" in2="finalBlur" operator="over" />
+            </filter>
+        </defs>
+    </svg>
+
+    <!-- Background Elements -->
+    <div class="fixed-bg bg-black">
+        <div class="waves-component" id="waves-bg">
+            <svg id="waves-svg" class="block w-full h-full js-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+            <div id="waves-pointer" class="pointer-dot"></div>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <!-- Navigation -->
+        <nav class="sidebar glass-panel">
+            <div class="brand">
+                <div class="brand-icon-wrap">
+                    <img src="logo.png" alt="MicroBudget Logo" class="brand-logo">
+                </div>
+                <h1 class="brand-text">MicroBudget.</h1>
+            </div>
+
+            <div class="nav-links">
+                <button class="nav-btn liquid-nav-btn active" data-view="dashboard">
+                    <div class="liquid-bg"></div>
+                    <div class="liquid-glass-fx"></div>
+                    <span class="liquid-content">
+                        <i data-lucide="layout-dashboard"></i>
+                        <span>Overview</span>
+                    </span>
+                </button>
+                <button class="nav-btn liquid-nav-btn" data-view="transactions">
+                    <div class="liquid-bg"></div>
+                    <div class="liquid-glass-fx"></div>
+                    <span class="liquid-content">
+                        <i data-lucide="list"></i>
+                        <span>Transactions</span>
+                    </span>
+                </button>
+                <button class="nav-btn liquid-nav-btn" data-view="settings">
+                    <div class="liquid-bg"></div>
+                    <div class="liquid-glass-fx"></div>
+                    <span class="liquid-content">
+                        <i data-lucide="settings"></i>
+                        <span>Settings</span>
+                    </span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Dashboard View -->
+            <section id="view-dashboard" class="view active fade-in">
+                <header class="view-header">
+                    <h2 class="view-title">Simple finances.<br/>Once a day.</h2>
+                    <p class="view-subtitle">Your personal microbudget planner.</p>
+                </header>
+
+                <div class="bento-grid">
+                    <!-- Total Balance -->
+                    <div class="bento-card balance-card glass-panel span-2">
+                        <div class="card-header">
+                            <span class="card-label">Total Balance</span>
+                        </div>
+                        <h3 class="balance-amount" id="dash-balance">$0.00</h3>
+                        <div class="balance-trees" id="balance-trees"></div>
+                    </div>
+
+                    <!-- Income / Expenses -->
+                    <div class="bento-card glass-panel flex-col">
+                        <div class="card-header">
+                            <span class="card-label"><i data-lucide="arrow-up-right" class="text-green"></i> Income</span>
+                        </div>
+                        <h4 class="stat-amount" id="dash-income">$0.00</h4>
+                    </div>
+
+                    <div class="bento-card glass-panel flex-col">
+                        <div class="card-header">
+                            <span class="card-label"><i data-lucide="arrow-down-right" class="text-red"></i> Expenses</span>
+                        </div>
+                        <h4 class="stat-amount" id="dash-expense">$0.00</h4>
+                    </div>
+
+                    <!-- Charts & Recent -->
+                    <div class="bento-card glass-panel flex-col span-2 chart-card">
+                        <div class="card-header">
+                            <span class="card-label">Spending by Category</span>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="expense-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="bento-card glass-panel flex-col span-2">
+                        <div class="card-header flex-between">
+                            <span class="card-label">Recent Activity</span>
+                            <button class="text-btn text-sm" onclick="switchView('transactions')">View All</button>
+                        </div>
+                        <div class="recent-transactions" id="recent-list">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Transactions View -->
+            <section id="view-transactions" class="view fade-in hidden">
+                <header class="view-header flex-between align-end">
+                    <div>
+                        <h2 class="view-title">Ledger.</h2>
+                        <p class="view-subtitle">All your transactions in one place.</p>
+                    </div>
+                </header>
+
+                <div class="filters glass-panel mb-6">
+                    <div class="search-box">
+                        <i data-lucide="search"></i>
+                        <input type="text" id="tx-search" placeholder="Search by note or category..." oninput="renderTransactions()">
+                    </div>
+                    <select id="tx-filter" onchange="renderTransactions()">
+                        <option value="all">All Types</option>
+                        <option value="income">Income Only</option>
+                        <option value="expense">Expenses Only</option>
+                    </select>
+                </div>
+
+                <div class="transaction-list-full glass-panel">
+                    <div id="full-tx-list">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings View -->
+            <section id="view-settings" class="view fade-in hidden">
+                <header class="view-header">
+                    <h2 class="view-title">Configuration.</h2>
+                    <p class="view-subtitle">Manage your app data and preferences.</p>
+                </header>
+
+                <div class="bento-grid">
+                    <div class="bento-card glass-panel span-2">
+                        <h4 class="card-label mb-4">Reminders</h4>
+                        <div class="setting-row">
+                            <div class="setting-info">
+                                <strong>Weekly Log Reminder</strong>
+                                <p class="text-xs text-muted">Get a browser notification every Friday to log expenses.</p>
+                            </div>
+                            <label class="toggle">
+                                <input type="checkbox" id="reminder-toggle" onchange="toggleReminders(this.checked)">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="bento-card glass-panel span-2">
+                        <h4 class="card-label mb-4">Data Management</h4>
+                        <div class="action-buttons">
+                            <button class="btn btn-outline" onclick="exportData()">
+                                <i data-lucide="download"></i> Export JSON
+                            </button>
+                            <label class="btn btn-outline cursor-pointer">
+                                <i data-lucide="upload"></i> Import JSON
+                                <input type="file" class="hidden" accept=".json" onchange="importData(event)">
+                            </label>
+                            <button class="btn btn-danger ml-auto" onclick="clearData()">
+                                <i data-lucide="trash-2"></i> Wipe Data
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Liquid Glass Floating Action Button -->
+    <div class="fab-container">
+        <button class="liquid-button" id="add-fab" onclick="openModal()">
+            <div class="liquid-bg"></div>
+            <div class="liquid-glass-fx"></div>
+            <span class="liquid-content">
+                <i data-lucide="plus"></i>
+                <span class="fab-text">New</span>
+            </span>
+        </button>
+    </div>
+
+    <!-- Transaction Modal -->
+    <div class="modal-overlay hidden" id="tx-modal">
+        <div class="modal glass-panel">
+            <div class="modal-header">
+                <h3 id="modal-title">Log Transaction</h3>
+                <button class="icon-btn" onclick="closeModal()">
+                    <i data-lucide="x"></i>
+                </button>
+            </div>
+            
+            <form id="tx-form" onsubmit="handleFormSubmit(event)">
+                <input type="hidden" id="tx-id">
+                
+                <div class="form-group type-selector">
+                    <label class="radio-card">
+                        <input type="radio" name="tx-type" value="expense" checked onchange="updateCategories()">
+                        <div class="radio-content text-red">Expense</div>
+                    </label>
+                    <label class="radio-card">
+                        <input type="radio" name="tx-type" value="income" onchange="updateCategories()">
+                        <div class="radio-content text-green">Income</div>
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label>Amount</label>
+                    <div class="amount-input-wrap">
+                        <span class="currency-symbol">$</span>
+                        <input type="number" id="tx-amount" step="0.01" min="0" placeholder="0.00" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Category</label>
+                    <select id="tx-category" required>
+                        <!-- Options generated by JS -->
+                    </select>
+                </div>
+
+                <div class="form-group row">
+                    <div class="col">
+                        <label>Date</label>
+                        <input type="date" id="tx-date" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Note (Optional)</label>
+                    <input type="text" id="tx-note" placeholder="What was this for?">
+                </div>
+
+                <button type="submit" class="btn btn-primary w-full mt-4">Save Transaction</button>
+            </form>
+        </div>
+    </div>
+
+    <script src="bundle.js"></script>
+</body>
+</html>
