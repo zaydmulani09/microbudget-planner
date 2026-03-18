@@ -609,7 +609,7 @@ function drawChart() {
 // --- Transaction CRUD with V2 features ---
 async function handleFormSubmit(e) {
     e.preventDefault();
-    const id = document.getElementById('tx-id').value || Date.now().toString();
+    const id = document.getElementById('tx-id').value || (Date.now() + Math.random().toString(36).substr(2, 9));
     const type = document.querySelector('input[name="tx-type"]:checked').value;
     const amount = parseFloat(document.getElementById('tx-amount').value);
     const categoryId = document.getElementById('tx-category').value;
@@ -625,17 +625,26 @@ async function handleFormSubmit(e) {
     const txData = { id, type, amount, categoryId, date, note, isRecurring, isPinned, goalId, image, timestamp: Date.now() };
     
     // 1. Persist to Database
+    const submitBtn = e.target.querySelector('button[type="submit"]');
     try {
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i data-lucide="loader-2" class="spin"></i> Saving...';
+            lucide.createIcons();
+        }
+
+        console.log("Saving transaction:", txData);
         await dbPut('transactions', txData);
         await loadData(); // Reload global transactions array
+        console.log("Data reloaded, transactions count:", transactions.length);
         
         // 2. UI Feedback & Cleanup
-        const submitBtn = e.target.querySelector('button[type="submit"]');
         if (submitBtn) {
             spawnSparks(e.clientX, e.clientY, '#10b981'); // Green for success
             submitBtn.innerHTML = 'Success!';
             setTimeout(() => {
                 submitBtn.innerHTML = 'Save Transaction';
+                submitBtn.disabled = false;
                 closeModal();
                 renderAll();
                 checkBadges();
@@ -647,7 +656,11 @@ async function handleFormSubmit(e) {
         }
     } catch (err) {
         console.error("Failed to save transaction:", err);
-        alert("Persistence Error: Could not save transaction. Check console.");
+        alert("Persistence Error: Could not save transaction. " + err.message);
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = 'Save Transaction';
+        }
     }
 }
 
@@ -824,7 +837,8 @@ window.openModal = async (id = null) => {
         const tx = transactions.find(t => t.id === id);
         if (tx) {
             document.getElementById('tx-id').value = tx.id;
-            document.getElementById(`type-${tx.type}`).checked = true;
+            const typeRadio = document.querySelector(`input[name="tx-type"][value="${tx.type}"]`);
+            if (typeRadio) typeRadio.checked = true;
             document.getElementById('tx-amount').value = tx.amount;
             updateCategories();
             document.getElementById('tx-category').value = tx.categoryId;
@@ -839,6 +853,10 @@ window.openModal = async (id = null) => {
                 document.querySelector('.drop-zone-prompt').classList.add('hidden');
             }
         }
+    } else {
+        // Default values for new transaction
+        document.getElementById('tx-date').valueAsDate = new Date();
+        updateCategories();
     }
     modal.classList.remove('hidden');
     lucide.createIcons();
