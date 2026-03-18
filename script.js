@@ -85,11 +85,13 @@ async function dbGetAll(storeName) {
 }
 
 async function dbPut(storeName, value) {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         const txn = db.transaction(storeName, "readwrite");
         const store = txn.objectStore(storeName);
         const req = store.put(value);
-        req.onsuccess = () => resolve();
+        txn.oncomplete = () => resolve();
+        txn.onerror = (e) => reject(e);
+        req.onerror = (e) => reject(e);
     });
 }
 
@@ -623,24 +625,29 @@ async function handleFormSubmit(e) {
     const txData = { id, type, amount, categoryId, date, note, isRecurring, isPinned, goalId, image, timestamp: Date.now() };
     
     // 1. Persist to Database
-    await dbPut('transactions', txData);
-    await loadData(); // Reload global transactions array
-    
-    // 2. UI Feedback & Cleanup
-    const submitBtn = e.target.querySelector('button[type="submit"]');
-    if (submitBtn) {
-        spawnSparks(e.clientX, e.clientY, '#10b981'); // Green for success
-        submitBtn.innerHTML = 'Success!';
-        setTimeout(() => {
-            submitBtn.innerHTML = 'Save Transaction';
+    try {
+        await dbPut('transactions', txData);
+        await loadData(); // Reload global transactions array
+        
+        // 2. UI Feedback & Cleanup
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            spawnSparks(e.clientX, e.clientY, '#10b981'); // Green for success
+            submitBtn.innerHTML = 'Success!';
+            setTimeout(() => {
+                submitBtn.innerHTML = 'Save Transaction';
+                closeModal();
+                renderAll();
+                checkBadges();
+            }, 600);
+        } else {
             closeModal();
             renderAll();
             checkBadges();
-        }, 600);
-    } else {
-        closeModal();
-        renderAll();
-        checkBadges();
+        }
+    } catch (err) {
+        console.error("Failed to save transaction:", err);
+        alert("Persistence Error: Could not save transaction. Check console.");
     }
 }
 
