@@ -15,6 +15,9 @@
     --radius-md: 16px;
     --radius-sm: 8px;
     --transition-theme: background-color 0.5s ease, color 0.5s ease, border-color 0.5s ease, backdrop-filter 0.5s ease;
+    --ease-futuristic: cubic-bezier(.4, 0, .2, 1);
+    --glow-cyan: 0 0 20px rgba(0, 240, 255, 0.4);
+    --glow-violet: 0 0 20px rgba(138, 43, 226, 0.4);
 }
 
 [data-theme="light"] {
@@ -60,6 +63,21 @@ button {
     cursor: pointer;
     border: none;
     background: none;
+    transition: transform 0.2s var(--ease-futuristic), box-shadow 0.2s var(--ease-futuristic), opacity 0.2s var(--ease-futuristic);
+}
+
+button:hover {
+    transform: scale(1.05);
+}
+
+button:active {
+    transform: scale(0.98);
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    backdrop-filter: blur(4px);
 }
 
 input, select {
@@ -301,6 +319,11 @@ input, select {
     padding: 1.5rem;
     display: flex;
     flex-direction: column;
+    transition: transform 0.3s var(--ease-futuristic), box-shadow 0.3s var(--ease-futuristic);
+}
+.bento-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), var(--glow-cyan);
 }
 .bento-card.span-2 {
     grid-column: span 2;
@@ -413,12 +436,25 @@ input, select {
 .badge-item.unlocked {
     opacity: 1;
     filter: grayscale(0);
+    animation: shimmer 3s infinite linear;
 }
+
+.badge-item:hover {
+    transform: translateY(-5px) rotate(3deg);
+}
+
+@keyframes shimmer {
+    0% { filter: brightness(1) drop-shadow(0 0 0 transparent); }
+    50% { filter: brightness(1.2) drop-shadow(0 0 15px var(--primary-glow)); }
+    100% { filter: brightness(1) drop-shadow(0 0 0 transparent); }
+}
+
 .badge-icon {
     width: 64px; height: 64px;
     background: var(--glass-bg);
     border-radius: 16px;
     display: flex; align-items: center; justify-content: center;
+    transition: transform 0.3s var(--ease-futuristic);
 }
 
 /* Drop Zone */
@@ -478,13 +514,15 @@ input, select {
     padding: 1rem;
     background: rgba(0,0,0,0.02);
     border-radius: var(--radius-md);
-    transition: transform 0.2s;
+    transition: transform 0.2s var(--ease-futuristic), box-shadow 0.2s var(--ease-futuristic);
+    cursor: pointer;
 }
 @media (prefers-color-scheme: dark) {
     .tx-item { background: rgba(255,255,255,0.03); }
 }
 .tx-item:hover {
-    transform: translateX(4px);
+    transform: translateX(8px) scale(1.01);
+    box-shadow: var(--glow-cyan);
 }
 .tx-info {
     display: flex;
@@ -619,6 +657,40 @@ input, select {
     border: 1px solid var(--glass-border);
     color: var(--text-primary);
     font-family: var(--font-sans);
+    transition: border-color 0.2s var(--ease-futuristic), box-shadow 0.2s var(--ease-futuristic), transform 0.2s var(--ease-futuristic);
+}
+
+.form-group input:focus, .form-group select:focus {
+    border-color: var(--primary);
+    box-shadow: var(--glow-cyan);
+    transform: translateY(-1px);
+}
+
+.form-group.error input {
+    border-color: var(--red);
+    animation: jitter 0.2s infinite;
+}
+
+@keyframes jitter {
+    0% { transform: translateX(0); }
+    25% { transform: translateX(2px); }
+    50% { transform: translateX(0); }
+    75% { transform: translateX(-2px); }
+    100% { transform: translateX(0); }
+}
+
+@keyframes ripple-wave {
+    0% { transform: scale(0); opacity: 0.5; }
+    100% { transform: scale(4); opacity: 0; }
+}
+
+.ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.4);
+    transform: scale(0);
+    animation: ripple-wave 0.6s linear;
+    pointer-events: none;
 }
 
 .btn {
@@ -778,11 +850,19 @@ input:checked + .toggle-slider:before { transform: translateX(20px); }
 }
 
 /* Animation Utility */
-.fade-in { animation: fadeIn 0.4s ease forwards; }
+.fade-in { animation: fadeIn 0.6s var(--ease-futuristic) forwards; }
+
 @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+    from { opacity: 0; transform: translateY(20px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
 }
+
+/* Cascading Delays */
+.tx-item:nth-child(1) { animation-delay: 0.1s; }
+.tx-item:nth-child(2) { animation-delay: 0.15s; }
+.tx-item:nth-child(3) { animation-delay: 0.2s; }
+.tx-item:nth-child(4) { animation-delay: 0.25s; }
+.tx-item:nth-child(5) { animation-delay: 0.3s; }
 
 /* Responsive */
 @media (max-width: 768px) {
