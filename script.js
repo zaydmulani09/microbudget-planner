@@ -622,7 +622,11 @@ async function handleFormSubmit(e) {
 
     const txData = { id, type, amount, categoryId, date, note, isRecurring, isPinned, goalId, image, timestamp: Date.now() };
     
-    // UI Feedback
+    // 1. Persist to Database
+    await dbPut('transactions', txData);
+    await loadData(); // Reload global transactions array
+    
+    // 2. UI Feedback & Cleanup
     const submitBtn = e.target.querySelector('button[type="submit"]');
     if (submitBtn) {
         spawnSparks(e.clientX, e.clientY, '#10b981'); // Green for success
@@ -634,8 +638,6 @@ async function handleFormSubmit(e) {
             checkBadges();
         }, 600);
     } else {
-        await dbPut('transactions', txData);
-        await loadData();
         closeModal();
         renderAll();
         checkBadges();
