@@ -156,6 +156,56 @@ function toggleTheme() {
     saveSettings();
 }
 
+async function checkStreaks() {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    
+    if (settings.lastLogin === todayStr) return; // Already logged today
+    
+    if (settings.lastLogin) {
+        const last = new Date(settings.lastLogin);
+        const diffDays = Math.floor((now - last) / (1000 * 60 * 60 * 24));
+        
+        if (diffDays === 1) {
+            settings.streak++;
+        } else if (diffDays > 1) {
+            settings.streak = 1;
+        }
+    } else {
+        settings.streak = 1;
+    }
+    
+    settings.lastLogin = todayStr;
+    await saveSettings();
+    renderAchievements();
+}
+
+window.clearData = async () => {
+    if (!confirm("⚠️ This will permanently delete ALL your transactions, goals, and settings. Are you sure?")) return;
+    
+    const stores = ['transactions', 'goals', 'settings', 'badges'];
+    const txn = db.transaction(stores, "readwrite");
+    stores.forEach(s => txn.objectStore(s).clear());
+    
+    txn.oncomplete = () => {
+        alert("Data cleared successfully.");
+        location.reload();
+    };
+};
+
+async function toggleReminders(enabled) {
+    if (enabled && Notification.permission === 'default') {
+        const permission = await Notification.requestPermission();
+        if (permission !== 'granted') {
+            const toggle = document.getElementById('reminder-toggle');
+            if (toggle) toggle.checked = false;
+            return;
+        }
+    }
+    settings.reminders = enabled;
+    await saveSettings();
+}
+
 // --- Space Background Logic ---
 let spaceCanvas, spaceCtx, stars = [], particles = [];
 let cursor = { x: 0, y: 0, targetX: 0, targetY: 0 };
@@ -332,9 +382,23 @@ function setupEventListeners() {
 
     const reminderToggle = document.getElementById('reminder-toggle');
     if (reminderToggle) reminderToggle.addEventListener('change', (e) => {
-         settings.reminders = e.target.checked;
-         saveSettings();
+         toggleReminders(e.target.checked);
     });
+
+    // Search & Filter Listeners
+    const txSearch = document.getElementById('tx-search');
+    if (txSearch) txSearch.addEventListener('input', renderTransactions);
+    
+    const txFilter = document.getElementById('tx-filter');
+    if (txFilter) txFilter.addEventListener('change', renderTransactions);
+
+    const themeToggle = document.getElementById('theme-toggle');
+    if (themeToggle) themeToggle.addEventListener('change', toggleTheme);
+
+    const importInput = document.querySelector('input[type="file"][onchange^="importData"]'); 
+    // Wait, I removed the onchange, so let's just find it by type and accept
+    const fileImport = document.querySelector('input[accept=".json"]');
+    if (fileImport) fileImport.addEventListener('change', importData);
 }
 
 function switchView(viewId) {
@@ -638,10 +702,26 @@ function calculateStats() {
 function renderTransactions() {
     const container = document.getElementById('full-tx-list');
     if (!container) return;
+    
+    const searchTerm = document.getElementById('tx-search')?.value.toLowerCase() || '';
+    const filterType = document.getElementById('tx-filter')?.value || 'all';
+    
+    let filtered = transactions.filter(tx => {
+        const cat = CATEGORIES[tx.type].find(c => c.id === tx.categoryId) || { label: '' };
+        const matchesSearch = tx.note?.toLowerCase().includes(searchTerm) || cat.label.toLowerCase().includes(searchTerm);
+        const matchesFilter = filterType === 'all' || tx.type === filterType;
+        return matchesSearch && matchesFilter;
+    });
+
     container.innerHTML = '';
-    const pinned = transactions.filter(t => t.isPinned).sort((a,b) => new Date(b.date) - new Date(a.date));
-    const others = transactions.filter(t => !t.isPinned).sort((a,b) => new Date(b.date) - new Date(a.date));
-    [...pinned, ...others].forEach(tx => container.appendChild(createTxEl(tx)));
+    const pinned = filtered.filter(t => t.isPinned).sort((a,b) => new Date(b.date) - new Date(a.date));
+    const others = filtered.filter(t => !t.isPinned).sort((a,b) => new Date(b.date) - new Date(a.date));
+    
+    if (filtered.length === 0) {
+        container.innerHTML = '<div class="text-center p-8 opacity-40">No transactions found matching your criteria.</div>';
+    } else {
+        [...pinned, ...others].forEach(tx => container.appendChild(createTxEl(tx)));
+    }
     lucide.createIcons();
 }
 
