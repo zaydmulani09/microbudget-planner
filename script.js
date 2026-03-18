@@ -135,6 +135,11 @@ async function loadData() {
 
 async function saveSettings() {
     await dbPut('settings', { id: 'app_settings', ...settings });
+    // Visual indicator of saved settings
+    const saveBtn = document.querySelector('[data-view="settings"]');
+    if (saveBtn) {
+        spawnSparks(window.innerWidth / 2, window.innerHeight / 2, '#10b981');
+    }
 }
 
 function setupTheming() {
@@ -153,6 +158,20 @@ function toggleTheme() {
 // --- Space Background Logic ---
 let spaceCanvas, spaceCtx, stars = [], particles = [];
 let cursor = { x: 0, y: 0, targetX: 0, targetY: 0 };
+let activeGlowParticles = [];
+
+function spawnSparks(x, y, color = '#00f0ff') {
+    for (let i = 0; i < 15; i++) {
+        activeGlowParticles.push({
+            x, y,
+            vx: (Math.random() - 0.5) * 10,
+            vy: (Math.random() - 0.5) * 10,
+            size: Math.random() * 3 + 1,
+            life: 1.0,
+            color
+        });
+    }
+}
 
 function initSpaceBackground() {
     spaceCanvas = document.getElementById('space-canvas');
@@ -209,7 +228,6 @@ function animateSpace() {
         if (layer.el) {
             const tx = cursor.x * layer.factor;
             const ty = cursor.y * layer.factor;
-            // Special handling for grid-floor which has an existing rotateX(65deg)
             if (layer.el.classList.contains('grid-floor')) {
                 layer.el.style.transform = `rotateX(65deg) translate(${tx}px, ${ty}px)`;
             } else {
@@ -240,6 +258,25 @@ function animateSpace() {
         spaceCtx.fill();
         spaceCtx.shadowBlur = 0;
     });
+
+    // Draw Sparks
+    activeGlowParticles = activeGlowParticles.filter(p => p.life > 0);
+    activeGlowParticles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vx *= 0.95;
+        p.vy *= 0.95;
+        p.life -= 0.02;
+        spaceCtx.fillStyle = p.color;
+        spaceCtx.globalAlpha = Math.max(0, p.life);
+        spaceCtx.shadowBlur = 15;
+        spaceCtx.shadowColor = p.color;
+        spaceCtx.beginPath();
+        spaceCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        spaceCtx.fill();
+        spaceCtx.globalAlpha = 1;
+        spaceCtx.shadowBlur = 0;
+    });
     
     requestAnimationFrame(animateSpace);
 }
@@ -258,6 +295,28 @@ function setupEventListeners() {
     document.addEventListener('mousemove', (e) => {
         cursor.targetX = (e.clientX - window.innerWidth / 2);
         cursor.targetY = (e.clientY - window.innerHeight / 2);
+    });
+
+    // Ripple & Spark Global Listener
+    document.addEventListener('mousedown', (e) => {
+        const target = e.target.closest('button, .list-item, .tx-item');
+        if (!target) return;
+        
+        // Ripple
+        const rect = target.getBoundingClientRect();
+        const ripple = document.createElement('span');
+        ripple.className = 'ripple';
+        const size = Math.max(rect.width, rect.height);
+        ripple.style.width = ripple.style.height = `${size}px`;
+        ripple.style.left = `${e.clientX - rect.left - size / 2}px`;
+        ripple.style.top = `${e.clientY - rect.top - size / 2}px`;
+        target.appendChild(ripple);
+        setTimeout(() => ripple.remove(), 600);
+        
+        // Sparks for primary buttons
+        if (target.classList.contains('btn-primary') || target.classList.contains('liquid-button')) {
+            spawnSparks(e.clientX, e.clientY, '#00f0ff');
+        }
     });
 
     document.getElementById('tx-form').addEventListener('submit', handleFormSubmit);
@@ -489,11 +548,24 @@ async function handleFormSubmit(e) {
 
     const txData = { id, type, amount, categoryId, date, note, isRecurring, isPinned, goalId, image, timestamp: Date.now() };
     
-    await dbPut('transactions', txData);
-    await loadData();
-    closeModal();
-    renderAll();
-    checkBadges();
+    // UI Feedback
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    if (submitBtn) {
+        spawnSparks(e.clientX, e.clientY, '#10b981'); // Green for success
+        submitBtn.innerHTML = 'Success!';
+        setTimeout(() => {
+            submitBtn.innerHTML = 'Save Transaction';
+            closeModal();
+            renderAll();
+            checkBadges();
+        }, 600);
+    } else {
+        await dbPut('transactions', txData);
+        await loadData();
+        closeModal();
+        renderAll();
+        checkBadges();
+    }
 }
 
 function renderAll() {
