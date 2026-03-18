@@ -150,15 +150,33 @@
                 </header>
 
                 <div class="filters glass-panel mb-6">
-                    <div class="search-box">
-                        <i data-lucide="search"></i>
-                        <input type="text" id="tx-search" placeholder="Search by note or category...">
+                    <div class="search-wrap">
+                        <div class="search-box">
+                            <i data-lucide="search"></i>
+                            <input type="text" id="tx-search" placeholder="Search note, category, or amount...">
+                        </div>
                     </div>
-                    <select id="tx-filter">
-                        <option value="all">All Types</option>
-                        <option value="income">Income Only</option>
-                        <option value="expense">Expenses Only</option>
-                    </select>
+                    <div class="filter-controls">
+                        <select id="tx-type-filter">
+                            <option value="all">All Types</option>
+                            <option value="income">Income</option>
+                            <option value="expense">Expense</option>
+                        </select>
+                        <select id="tx-category-filter">
+                            <option value="all">All Categories</option>
+                        </select>
+                        <select id="tx-pin-filter">
+                            <option value="all">Pin: All</option>
+                            <option value="pinned">Pinned Only</option>
+                            <option value="unpinned">Unpinned Only</option>
+                        </select>
+                        <select id="tx-sort">
+                            <option value="newest">Newest First</option>
+                            <option value="oldest">Oldest First</option>
+                            <option value="highest">Highest Amount</option>
+                            <option value="lowest">Lowest Amount</option>
+                        </select>
+                    </div>
                 </div>
 
                 <div class="transaction-list-full glass-panel">
