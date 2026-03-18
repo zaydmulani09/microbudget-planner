@@ -44,6 +44,14 @@ const TUTORIAL_STEPS = [
     { title: "The FAB", text: "Click the floating '+' button to log transactions, set recurring rules, or upload receipts." }
 ];
 
+const ROUTE_MAP = {
+    '/dashboard': 'dashboard',
+    '/ledger': 'transactions',
+    '/goals': 'goals',
+    '/achievements': 'achievements',
+    '/settings': 'settings'
+};
+
 // --- IndexedDB Wrapper ---
 const dbName = "MicroBudgetDB";
 let db;
@@ -120,6 +128,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     document.getElementById('tx-date').valueAsDate = new Date();
     updateCategories();
+
+    // Initial Routing
+    handleRoute();
 });
 
 async function loadData() {
@@ -338,12 +349,13 @@ function animateSpace() {
 function setupEventListeners() {
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
             const targetBtn = e.target.closest('.nav-btn');
-            targetBtn.classList.add('active');
-            switchView(targetBtn.dataset.view);
+            const viewId = targetBtn.dataset.view;
+            switchView(viewId);
         });
     });
+
+    window.addEventListener('popstate', handleRoute);
 
     document.addEventListener('mousemove', (e) => {
         cursor.targetX = (e.clientX - window.innerWidth / 2);
@@ -412,14 +424,39 @@ function setupEventListeners() {
     if (fileImport) fileImport.addEventListener('change', importData);
 }
 
-function switchView(viewId) {
+function handleRoute() {
+    const path = window.location.pathname;
+    const viewId = ROUTE_MAP[path] || 'dashboard';
+    switchView(viewId, false);
+}
+
+function switchView(viewId, shouldPushState = true) {
+    // 1. Sync Active Button States
+    document.querySelectorAll('.nav-btn').forEach(btn => {
+        if (btn.dataset.view === viewId) btn.classList.add('active');
+        else btn.classList.remove('active');
+    });
+
+    // 2. Update Browser History
+    if (shouldPushState) {
+        let path = Object.keys(ROUTE_MAP).find(key => ROUTE_MAP[key] === viewId) || '/dashboard';
+        history.pushState({ viewId }, "", path);
+    }
+
+    // 3. Toggle View Visibility
     document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
     const target = document.getElementById(`view-${viewId}`);
-    if (target) target.classList.remove('hidden');
+    if (target) {
+        target.classList.remove('hidden');
+        target.classList.add('fade-in');
+    }
+
+    // 4. View Specific Logic
     if (viewId === 'dashboard') {
         renderAll();
         drawBalanceTrees();
     }
+    if (viewId === 'transactions') renderTransactions();
     if (viewId === 'goals') renderGoals();
     if (viewId === 'achievements') renderAchievements();
 }
@@ -552,12 +589,20 @@ async function checkRecurring() {
     if (updated) renderAll();
 }
 
-// --- Chart Animation Refined ---
+// --- Chart Animation Refined: Bar Graph ---
 function drawChart() {
     const canvas = document.getElementById('expense-chart');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    const width = canvas.width, height = canvas.height;
+    
+    // Handle High DPI displays
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    const width = rect.width, height = rect.height;
     
     const categoryTotals = {};
     transactions.filter(t => t.type === 'expense').forEach(t => {
@@ -567,39 +612,59 @@ function drawChart() {
     const data = Object.entries(categoryTotals).map(([id, amount]) => {
         const cat = CATEGORIES.expense.find(c => c.id === id);
         return { label: cat.label, amount, color: cat.color };
-    });
+    }).sort((a, b) => b.amount - a.amount);
 
     if (!data.length) {
-        ctx.clearRect(0,0,width,height);
+        ctx.clearRect(0, 0, width, height);
         return;
     }
 
-    const total = data.reduce((sum, d) => sum + d.amount, 0);
+    const maxAmount = Math.max(...data.map(d => d.amount));
+    const padding = 20;
+    const barHeight = 24;
+    const barSpacing = 16;
+    const labelWidth = 100;
+    const chartWidth = width - labelWidth - padding * 2;
     
     let animationProgress = 0;
     const animate = () => {
-        animationProgress += 0.05;
+        animationProgress += 0.04;
         if (animationProgress > 1) animationProgress = 1;
 
-        let startAngle = -Math.PI / 2;
-        ctx.clearRect(0,0,width,height);
+        ctx.clearRect(0, 0, width, height);
         
-        data.forEach(d => {
-            const sliceAngle = (d.amount / total) * 2 * Math.PI * animationProgress;
+        data.forEach((d, i) => {
+            const y = padding + i * (barHeight + barSpacing);
+            const barWidth = (d.amount / maxAmount) * chartWidth * animationProgress;
+            
+            // Draw Labels
+            ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-muted') || '#94a3b8';
+            ctx.font = '500 12px Inter';
+            ctx.textAlign = 'right';
+            ctx.fillText(d.label, labelWidth - 10, y + barHeight / 1.5);
+            
+            // Draw Bar Backshadow (subtle)
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
             ctx.beginPath();
-            ctx.moveTo(width/2, height/2);
-            ctx.arc(width/2, height/2, width/2.5, startAngle, startAngle + sliceAngle);
-            ctx.closePath();
-            ctx.fillStyle = d.color;
+            ctx.roundRect(labelWidth, y, chartWidth, barHeight, 6);
             ctx.fill();
-            startAngle += sliceAngle;
-        });
 
-        // Inner hole for Donut effect
-        ctx.beginPath();
-        ctx.arc(width/2, height/2, width/4, 0, 2 * Math.PI);
-        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--glass-bg');
-        ctx.fill();
+            // Draw Bar
+            ctx.fillStyle = d.color;
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = d.color;
+            ctx.beginPath();
+            ctx.roundRect(labelWidth, y, barWidth, barHeight, 6);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Draw Amount
+            if (animationProgress === 1) {
+                ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--text-primary') || '#f8fafc';
+                ctx.textAlign = 'left';
+                ctx.fillText(`$${d.amount.toFixed(0)}`, labelWidth + barWidth + 10, y + barHeight / 1.5);
+            }
+        });
 
         if (animationProgress < 1) requestAnimationFrame(animate);
     };
@@ -935,7 +1000,7 @@ function updateGoalsProgress() {
         const total = linked.reduce((sum, t) => {
             return sum + (t.type === 'income' ? t.amount : -t.amount);
         }, 0);
-        g.currentProgress = total;
+        g.currentProgress = (parseFloat(g.current) || 0) + total;
     });
 }
 
