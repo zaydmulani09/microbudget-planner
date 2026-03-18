@@ -152,9 +152,9 @@
                 <div class="filters glass-panel mb-6">
                     <div class="search-box">
                         <i data-lucide="search"></i>
-                        <input type="text" id="tx-search" placeholder="Search by note or category..." oninput="renderTransactions()">
+                        <input type="text" id="tx-search" placeholder="Search by note or category...">
                     </div>
-                    <select id="tx-filter" onchange="renderTransactions()">
+                    <select id="tx-filter">
                         <option value="all">All Types</option>
                         <option value="income">Income Only</option>
                         <option value="expense">Expenses Only</option>
@@ -215,7 +215,7 @@
                                 <p class="text-xs text-muted">Get a browser notification every Friday to log expenses.</p>
                             </div>
                             <label class="toggle">
-                                <input type="checkbox" id="reminder-toggle" onchange="toggleReminders(this.checked)">
+                                <input type="checkbox" id="reminder-toggle">
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
@@ -225,7 +225,7 @@
                                 <p class="text-xs text-muted">Toggle between high-contrast dark and clean light modes.</p>
                             </div>
                             <label class="toggle">
-                                <input type="checkbox" id="theme-toggle" onchange="toggleTheme()">
+                                <input type="checkbox" id="theme-toggle">
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
