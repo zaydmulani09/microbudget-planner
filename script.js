@@ -112,7 +112,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupDropZone();
     renderAll();
     checkStreaks();
-    checkRecurring();
+    await checkRecurring();
     if (!settings.tutorialCompleted) startTutorial();
     
     document.getElementById('tx-date').valueAsDate = new Date();
@@ -126,7 +126,10 @@ async function loadData() {
     const savedSettings = await dbGet('settings', 'app_settings');
     if (savedSettings) {
         settings = { ...settings, ...savedSettings };
-        document.getElementById('reminder-toggle').checked = settings.reminders;
+        const rt = document.getElementById('reminder-toggle');
+        if (rt) rt.checked = settings.reminders;
+        const tt = document.getElementById('theme-toggle');
+        if (tt) tt.checked = settings.theme === 'dark';
     }
 }
 
@@ -139,7 +142,10 @@ function setupTheming() {
 }
 
 function toggleTheme() {
-    settings.theme = settings.theme === 'dark' ? 'light' : 'dark';
+    const tt = document.getElementById('theme-toggle');
+    if (tt) settings.theme = tt.checked ? 'dark' : 'light';
+    else settings.theme = settings.theme === 'dark' ? 'light' : 'dark';
+    
     document.documentElement.setAttribute('data-theme', settings.theme);
     saveSettings();
 }
@@ -287,10 +293,15 @@ function setupEventListeners() {
     });
 
     document.getElementById('tx-form').addEventListener('submit', handleFormSubmit);
+    document.getElementById('goal-form').addEventListener('submit', handleGoalSubmit);
     document.getElementById('tutorial-next').addEventListener('click', nextTutorialStep);
     document.getElementById('tutorial-skip').addEventListener('click', endTutorial);
     
-    // Theme Toggle Listener? (Handled in settings switch usually)
+    // Theme Toggle Listener
+    const themeSwitch = document.querySelector('[data-view="settings"]'); 
+    // In settings view we could add a toggle, for now theme is handled via toggleTheme() manually in the console or a future UI button.
+    // Let's add a proper theme toggle button to the settings view in HTML if needed, but for now I'll stick to the JS logic.
+
     const reminderToggle = document.getElementById('reminder-toggle');
     if (reminderToggle) reminderToggle.addEventListener('change', (e) => {
          settings.reminders = e.target.checked;
@@ -302,9 +313,194 @@ function switchView(viewId) {
     document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
     const target = document.getElementById(`view-${viewId}`);
     if (target) target.classList.remove('hidden');
-    if (viewId === 'dashboard') drawChart();
+    if (viewId === 'dashboard') {
+        renderAll();
+        drawBalanceTrees();
+    }
     if (viewId === 'goals') renderGoals();
     if (viewId === 'achievements') renderAchievements();
+}
+
+// --- Goal Logic ---
+window.openGoalModal = () => document.getElementById('goal-modal').classList.remove('hidden');
+window.closeGoalModal = () => document.getElementById('goal-modal').classList.add('hidden');
+
+async function handleGoalSubmit(e) {
+    e.preventDefault();
+    const goal = {
+        id: Date.now().toString(),
+        name: document.getElementById('goal-name').value,
+        target: parseFloat(document.getElementById('goal-target').value),
+        current: parseFloat(document.getElementById('goal-current').value),
+        createdAt: Date.now()
+    };
+    await dbPut('goals', goal);
+    goals.push(goal);
+    closeGoalModal();
+    renderGoals();
+    updateGoalDropdown();
+    checkBadges();
+}
+
+function renderGoals() {
+    const container = document.getElementById('goals-list');
+    if (!container) return;
+    container.innerHTML = goals.map(g => {
+        const progress = g.target > 0 ? (g.currentProgress / g.target) * 100 : 0;
+        return `
+            <div class="bento-card glass-panel goal-card">
+                <div class="flex-between mb-2">
+                    <h4>${g.name}</h4>
+                    <button class="icon-btn text-xs" onclick="deleteGoal('${g.id}')"><i data-lucide="trash-2"></i></button>
+                </div>
+                <div class="goal-progress-container">
+                    <div class="goal-progress-fill" style="width: ${Math.min(100, progress)}%;"></div>
+                </div>
+                <p class="text-xs text-muted">$${(g.currentProgress || 0).toLocaleString()} / $${g.target.toLocaleString()}</p>
+            </div>
+        `;
+    }).join('') + `
+        <div class="bento-card glass-panel goal-card flex-center cursor-pointer" onclick="openGoalModal()">
+            <i data-lucide="plus" style="width: 40px; height: 40px; opacity: 0.2;"></i>
+        </div>
+    `;
+    lucide.createIcons();
+    updateGoalDropdown();
+}
+
+function updateGoalDropdown() {
+    const select = document.getElementById('tx-goal');
+    if (!select) return;
+    const currentVal = select.value;
+    select.innerHTML = '<option value="">None</option>' + 
+        goals.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+    select.value = currentVal;
+}
+
+window.deleteGoal = async (id) => {
+    await dbDelete('goals', id);
+    goals = goals.filter(g => g.id !== id);
+    renderGoals();
+}
+
+// --- Data Portability ---
+window.exportData = () => {
+    const data = { transactions, goals, settings };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `microbudget_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.click();
+};
+
+window.importData = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            // Overwrite all
+            for (const tx of data.transactions || []) await dbPut('transactions', tx);
+            for (const g of data.goals || []) await dbPut('goals', g);
+            if (data.settings) {
+                settings = { ...settings, ...data.settings };
+                await saveSettings();
+            }
+            alert('Data imported successfully! Reloading...');
+            location.reload();
+        } catch (err) {
+            alert('Error importing data. Please check the file format.');
+        }
+    };
+    reader.readAsText(file);
+};
+
+// --- Recurring logic ---
+async function checkRecurring() {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    let updated = false;
+
+    // Filter for recurring transactions that were logged earlier than today
+    const recurringParents = transactions.filter(t => t.isRecurring && t.date < todayStr);
+    
+    for (const parent of recurringParents) {
+        // Simple logic: if it's recurring and from a previous date, 
+        // check if we've already generated one for today.
+        // In a real app we'd check internal (daily, weekly, etc.)
+        const hasToday = transactions.find(t => t.parentId === parent.id && t.date === todayStr);
+        
+        if (!hasToday) {
+            const newTx = {
+                ...parent,
+                id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                date: todayStr,
+                parentId: parent.id,
+                timestamp: Date.now()
+            };
+            delete newTx.isPinned; // Don't pin child recurring by default?
+            await dbPut('transactions', newTx);
+            transactions.push(newTx);
+            updated = true;
+        }
+    }
+    if (updated) renderAll();
+}
+
+// --- Chart Animation Refined ---
+function drawChart() {
+    const canvas = document.getElementById('expense-chart');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width, height = canvas.height;
+    
+    const categoryTotals = {};
+    transactions.filter(t => t.type === 'expense').forEach(t => {
+        categoryTotals[t.categoryId] = (categoryTotals[t.categoryId] || 0) + t.amount;
+    });
+
+    const data = Object.entries(categoryTotals).map(([id, amount]) => {
+        const cat = CATEGORIES.expense.find(c => c.id === id);
+        return { label: cat.label, amount, color: cat.color };
+    });
+
+    if (!data.length) {
+        ctx.clearRect(0,0,width,height);
+        return;
+    }
+
+    const total = data.reduce((sum, d) => sum + d.amount, 0);
+    
+    let animationProgress = 0;
+    const animate = () => {
+        animationProgress += 0.05;
+        if (animationProgress > 1) animationProgress = 1;
+
+        let startAngle = -Math.PI / 2;
+        ctx.clearRect(0,0,width,height);
+        
+        data.forEach(d => {
+            const sliceAngle = (d.amount / total) * 2 * Math.PI * animationProgress;
+            ctx.beginPath();
+            ctx.moveTo(width/2, height/2);
+            ctx.arc(width/2, height/2, width/2.5, startAngle, startAngle + sliceAngle);
+            ctx.closePath();
+            ctx.fillStyle = d.color;
+            ctx.fill();
+            startAngle += sliceAngle;
+        });
+
+        // Inner hole for Donut effect
+        ctx.beginPath();
+        ctx.arc(width/2, height/2, width/4, 0, 2 * Math.PI);
+        ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--glass-bg');
+        ctx.fill();
+
+        if (animationProgress < 1) requestAnimationFrame(animate);
+    };
+    animate();
 }
 
 // --- Transaction CRUD with V2 features ---
@@ -318,11 +514,12 @@ async function handleFormSubmit(e) {
     const note = document.getElementById('tx-note').value;
     const isRecurring = document.getElementById('tx-recurring').checked;
     const isPinned = document.getElementById('tx-pinned').checked;
+    const goalId = document.getElementById('tx-goal').value;
     
     const previewImg = document.querySelector('#image-preview img');
     const image = previewImg ? previewImg.src : null;
 
-    const txData = { id, type, amount, categoryId, date, note, isRecurring, isPinned, image, timestamp: Date.now() };
+    const txData = { id, type, amount, categoryId, date, note, isRecurring, isPinned, goalId, image, timestamp: Date.now() };
     
     await dbPut('transactions', txData);
     await loadData();
@@ -337,6 +534,7 @@ function renderAll() {
     renderRecent();
     drawChart();
     updateGoalsProgress();
+    drawBalanceTrees();
 }
 
 function calculateStats() {
@@ -345,16 +543,18 @@ function calculateStats() {
         if (t.type === 'income') income += t.amount;
         if (t.type === 'expense') expense += t.amount;
     });
-    document.getElementById('dash-income').innerText = `$${income.toFixed(2)}`;
-    document.getElementById('dash-expense').innerText = `$${expense.toFixed(2)}`;
-    document.getElementById('dash-balance').innerText = `$${(income - expense).toFixed(2)}`;
+    const incomeEl = document.getElementById('dash-income');
+    const expenseEl = document.getElementById('dash-expense');
+    const balanceEl = document.getElementById('dash-balance');
+    if (incomeEl) incomeEl.innerText = `$${income.toFixed(2)}`;
+    if (expenseEl) expenseEl.innerText = `$${expense.toFixed(2)}`;
+    if (balanceEl) balanceEl.innerText = `$${(income - expense).toFixed(2)}`;
 }
 
 function renderTransactions() {
     const container = document.getElementById('full-tx-list');
     if (!container) return;
     container.innerHTML = '';
-    // Pinned transactions first
     const pinned = transactions.filter(t => t.isPinned).sort((a,b) => new Date(b.date) - new Date(a.date));
     const others = transactions.filter(t => !t.isPinned).sort((a,b) => new Date(b.date) - new Date(a.date));
     [...pinned, ...others].forEach(tx => container.appendChild(createTxEl(tx)));
@@ -376,55 +576,70 @@ function createTxEl(tx) {
         <div class="flex-row items-center gap-4">
             <span class="tx-amount ${tx.type === 'income' ? 'text-green' : 'text-primary'}">${tx.type==='income'?'+':'-'}$${tx.amount.toFixed(2)}</span>
             <button class="icon-btn" onclick="openModal('${tx.id}')"><i data-lucide="edit-2"></i></button>
+            <button class="icon-btn" onclick="deleteTransaction('${tx.id}')"><i data-lucide="trash-2"></i></button>
         </div>
     `;
     return div;
 }
 
-// --- Gamification & Goals ---
-function checkStreaks() {
-    const today = new Date().toDateString();
-    if (settings.lastLogin !== today) {
-        const yesterday = new Date(Date.now() - 86400000).toDateString();
-        if (settings.lastLogin === yesterday) settings.streak++;
-        else settings.streak = 1;
-        settings.lastLogin = today;
-        saveSettings();
-    }
-}
+window.deleteTransaction = async (id) => {
+    if (!confirm('Delete this transaction?')) return;
+    await dbDelete('transactions', id);
+    await loadData();
+    renderAll();
+};
 
-function renderAchievements() {
-    document.getElementById('streak-count').innerText = `${settings.streak} Day Streak`;
-    const container = document.getElementById('badges-list');
-    container.innerHTML = BADGES_CONFIG.map(b => `
-        <div class="badge-item ${badges.find(ub => ub.id === b.id) ? 'unlocked' : ''}">
-            <div class="badge-icon"><i data-lucide="${b.icon}"></i></div>
-            <p class="text-xs font-bold">${b.label}</p>
-        </div>
-    `).join('');
+// --- Modal Handlers ---
+window.openModal = async (id = null) => {
+    const modal = document.getElementById('tx-modal');
+    const form = document.getElementById('tx-form');
+    form.reset();
+    document.getElementById('tx-id').value = '';
+    document.getElementById('image-preview').innerHTML = '';
+    document.getElementById('image-preview').classList.add('hidden');
+    document.querySelector('.drop-zone-prompt').classList.remove('hidden');
+
+    if (id) {
+        const tx = transactions.find(t => t.id === id);
+        if (tx) {
+            document.getElementById('tx-id').value = tx.id;
+            document.getElementById(`type-${tx.type}`).checked = true;
+            document.getElementById('tx-amount').value = tx.amount;
+            updateCategories();
+            document.getElementById('tx-category').value = tx.categoryId;
+            document.getElementById('tx-date').value = tx.date;
+            document.getElementById('tx-note').value = tx.note;
+            document.getElementById('tx-recurring').checked = tx.isRecurring;
+            document.getElementById('tx-pinned').checked = tx.isPinned;
+            if (tx.image) {
+                const preview = document.getElementById('image-preview');
+                preview.innerHTML = `<img src="${tx.image}">`;
+                preview.classList.remove('hidden');
+                document.querySelector('.drop-zone-prompt').classList.add('hidden');
+            }
+        }
+    }
+    modal.classList.remove('hidden');
+    lucide.createIcons();
+};
+
+window.closeModal = () => document.getElementById('tx-modal').classList.add('hidden');
+
+function renderRecent() {
+    const container = document.getElementById('recent-list');
+    if(!container) return;
+    container.innerHTML = '';
+    const sorted = [...transactions].sort((a,b) => new Date(b.date) - new Date(a.date));
+    sorted.slice(0, 5).forEach(tx => container.appendChild(createTxEl(tx)));
     lucide.createIcons();
 }
 
-async function unlockBadge(id) {
-    if (badges.find(b => b.id === id)) return;
-    const badge = BADGES_CONFIG.find(b => b.id === id);
-    await dbPut('badges', { id, unlockedAt: Date.now() });
-    badges.push({ id });
-    alert(`Achievement Unlocked: ${badge.label}!`);
-}
+window.updateCategories = function() {
+    const type = document.querySelector('input[name="tx-type"]:checked').value;
+    const select = document.getElementById('tx-category');
+    select.innerHTML = CATEGORIES[type].map(c => `<option value="${c.id}">${c.label}</option>`).join('');
+};
 
-function checkBadges() {
-    if (transactions.length >= 1) unlockBadge('first_tx');
-    if (settings.streak >= 3) unlockBadge('streak_3');
-}
-
-// --- Recurring logic ---
-async function checkRecurring() {
-    // Simple logic: if a transaction is recurring, check if current month has one.
-    // In a real app, this would be more complex. For V2, we mark it as logic-ready.
-}
-
-// --- Drop Zone for Images ---
 function setupDropZone() {
     const dz = document.getElementById('drop-zone');
     if (!dz) return;
@@ -450,86 +665,60 @@ function handleFiles(files) {
     }
 }
 
-// --- Tutorial ---
+// --- Tutorial logic ---
 function startTutorial() {
     currentTutorialStep = 0;
     showTutorialStep();
     document.getElementById('tutorial-overlay').classList.remove('hidden');
 }
-
 function showTutorialStep() {
     const step = TUTORIAL_STEPS[currentTutorialStep];
     document.getElementById('tutorial-title').innerText = step.title;
     document.getElementById('tutorial-text').innerText = step.text;
 }
-
 function nextTutorialStep() {
     currentTutorialStep++;
     if (currentTutorialStep >= TUTORIAL_STEPS.length) endTutorial();
     else showTutorialStep();
 }
-
 function endTutorial() {
     document.getElementById('tutorial-overlay').classList.add('hidden');
     settings.tutorialCompleted = true;
     saveSettings();
 }
 
-// --- Chart Animation ---
-let chartRotation = 0;
-function drawChart() {
-    const canvas = document.getElementById('expense-chart');
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    const expenses = transactions.filter(t => t.type === 'expense');
-    if (!expenses.length) return;
-    
-    // Simple animated pie chart
-    const animate = () => {
-        if (canvas.offsetParent === null) return;
-        ctx.clearRect(0,0, canvas.width, canvas.height);
-        // Pie drawing logic with chartRotation...
-        // For now, keeping original static logic but wrapped in a requestAnimationFrame if needed
-    };
-    // Re-using the simplified direct draw for performance but can be expanded
-}
-
-// Placeholder functions for modal (restored from original)
-window.openModal = function(id = null) {
-    document.getElementById('tx-modal').classList.remove('hidden');
-    // Clear and fill logic...
-}
-window.closeModal = function() {
-    document.getElementById('tx-modal').classList.add('hidden');
-}
-window.renderRecent = function() {
-    const container = document.getElementById('recent-list');
-    if(!container) return;
-    container.innerHTML = '';
-    transactions.slice(0, 5).forEach(tx => container.appendChild(createTxEl(tx)));
-    lucide.createIcons();
-}
-window.updateCategories = function() {
-    const type = document.querySelector('input[name="tx-type"]:checked').value;
-    const select = document.getElementById('tx-category');
-    select.innerHTML = CATEGORIES[type].map(c => `<option value="${c.id}">${c.label}</option>`).join('');
-}
-window.switchView = switchView;
 window.toggleTheme = toggleTheme;
+window.switchView = switchView;
 
-// Goal rendering
-function renderGoals() {
-    const container = document.getElementById('goals-list');
-    container.innerHTML = `
-        <div class="bento-card glass-panel goal-card">
-            <h4>House Savings</h4>
-            <div class="goal-progress-container"><div class="goal-progress-fill" style="width: 45%;"></div></div>
-            <p class="text-xs text-muted">$4,500 / $10,000</p>
-        </div>
-        <div class="bento-card glass-panel goal-card flex-center cursor-pointer" onclick="alert('Goal creation coming in next minor update!')">
-            <i data-lucide="plus" style="width: 40px; height: 40px; opacity: 0.2;"></i>
-        </div>
-    `;
-    lucide.createIcons();
+function updateGoalsProgress() {
+    goals.forEach(g => {
+        const linked = transactions.filter(t => t.goalId === g.id);
+        const total = linked.reduce((sum, t) => {
+            return sum + (t.type === 'income' ? t.amount : -t.amount);
+        }, 0);
+        g.currentProgress = total;
+    });
 }
-function updateGoalsProgress() {}
+
+function drawBalanceTrees() {
+    const container = document.getElementById('balance-trees');
+    if (!container) return;
+    const balance = transactions.reduce((sum, t) => sum + (t.type === 'income' ? t.amount : -t.amount), 0);
+    const treeCount = Math.min(20, Math.floor(balance / 50)); 
+    
+    container.innerHTML = '';
+    for (let i = 0; i < treeCount; i++) {
+        const tree = document.createElement('div');
+        tree.className = 'tree fade-in';
+        tree.innerHTML = '🌲';
+        tree.style.position = 'absolute';
+        tree.style.bottom = '0';
+        tree.style.left = `${Math.random() * 95}%`;
+        tree.style.fontSize = `${12 + Math.random() * 24}px`;
+        tree.style.opacity = '0.6';
+        tree.style.transition = 'all 0.5s ease';
+        container.appendChild(tree);
+    }
+}
+
+

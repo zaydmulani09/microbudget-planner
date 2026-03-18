@@ -1,0 +1,16 @@
+{
+  "name": "microbudget-planner",
+  "version": "2.0.0",
+  "description": "Simple local-first budgeting app",
+  "main": "script.js",
+  "scripts": {
+    "build": "esbuild script.js --bundle --outfile=bundle.js --minify --format=iife",
+    "dev": "esbuild script.js --bundle --outfile=bundle.js --watch"
+  },
+  "dependencies": {
+    "simplex-noise": "^4.0.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.0"
+  }
+}

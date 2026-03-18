@@ -219,6 +219,16 @@
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
+                        <div class="setting-row mt-4">
+                            <div class="setting-info">
+                                <strong>Dark Mode</strong>
+                                <p class="text-xs text-muted">Toggle between high-contrast dark and clean light modes.</p>
+                            </div>
+                            <label class="toggle">
+                                <input type="checkbox" id="theme-toggle" onchange="toggleTheme()">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
                     </div>
 
                     <div class="bento-card glass-panel span-2">
@@ -292,6 +302,14 @@
                     </select>
                 </div>
 
+                <div class="form-group">
+                    <label>Link to Goal (Optional)</label>
+                    <select id="tx-goal">
+                        <option value="">None</option>
+                        <!-- Goals populated by JS -->
+                    </select>
+                </div>
+
                 <div class="form-group row">
                     <div class="col">
                         <label>Date</label>
@@ -327,6 +345,31 @@
                 </div>
 
                 <button type="submit" class="btn btn-primary w-full mt-4">Save Transaction</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Goal Modal -->
+    <div id="goal-modal" class="modal-overlay hidden">
+        <div class="modal glass-panel">
+            <div class="modal-header">
+                <h3>New Goal</h3>
+                <button class="icon-btn" onclick="closeGoalModal()"><i data-lucide="x"></i></button>
+            </div>
+            <form id="goal-form">
+                <div class="form-group">
+                    <label>Goal Name</label>
+                    <input type="text" id="goal-name" placeholder="e.g., New Laptop" required>
+                </div>
+                <div class="form-group">
+                    <label>Target Amount ($)</label>
+                    <input type="number" id="goal-target" placeholder="0.00" step="0.01" required>
+                </div>
+                <div class="form-group">
+                    <label>Current Savings ($)</label>
+                    <input type="number" id="goal-current" placeholder="0.00" step="0.01" value="0">
+                </div>
+                <button type="submit" class="btn btn-primary w-full mt-4">Create Goal</button>
             </form>
         </div>
     </div>
