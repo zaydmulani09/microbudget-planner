@@ -81,7 +81,67 @@ input, select {
 .align-end { align-items: flex-end; }
 .hidden { display: none !important; }
 
-/* Fixed Background Elements */
+/* Futuristic Space Background - Hyperrealistic V2 */
+.space-bg {
+    background: radial-gradient(circle at 50% 50%, #0a1128 0%, #000000 100%);
+    perspective: 1200px;
+}
+#space-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    opacity: 0.8;
+}
+.aurora-layer {
+    position: absolute;
+    inset: -50%;
+    width: 200%;
+    height: 200%;
+    background: 
+        radial-gradient(circle at 30% 40%, rgba(0, 255, 255, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 70% 60%, rgba(138, 43, 226, 0.08) 0%, transparent 40%);
+    filter: blur(120px);
+    mix-blend-mode: color-dodge;
+    z-index: 1;
+    animation: aurora-drift 40s ease-in-out infinite alternate;
+    pointer-events: none;
+}
+@keyframes aurora-drift {
+    0% { transform: translate(-5%, -5%) rotate(0deg); }
+    50% { transform: translate(5%, 5%) rotate(5deg); }
+    100% { transform: translate(-5%, 2%) rotate(-5deg); }
+}
+.grid-floor {
+    position: absolute;
+    bottom: -30%;
+    left: -50%;
+    width: 200%;
+    height: 100%;
+    background-image: 
+        linear-gradient(to right, rgba(0, 240, 255, 0.15) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(0, 240, 255, 0.15) 1px, transparent 1px);
+    background-size: 60px 60px;
+    transform: rotateX(65deg);
+    transform-origin: center bottom;
+    z-index: 2;
+    mask-image: linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.4) 40%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to top, rgba(0,0,0,1) 0%, rgba(0,0,0,0.4) 40%, transparent 100%);
+    box-shadow: inset 0 0 100px rgba(0, 240, 255, 0.1);
+}
+.scanlines {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        rgba(18, 16, 16, 0) 50%, 
+        rgba(0, 0, 0, 0.15) 50%
+    );
+    background-size: 100% 3px;
+    z-index: 10;
+    pointer-events: none;
+    opacity: 0.25;
+}
 .fixed-bg {
     position: fixed;
     top: 0;
@@ -90,40 +150,6 @@ input, select {
     height: 100vh;
     z-index: -1;
     overflow: hidden;
-    background: var(--bg-color);
-}
-/* Waves Background */
-.bg-black {
-    background-color: #000000;
-}
-.waves-component {
-    position: absolute;
-    top: 0;
-    left: 0;
-    margin: 0;
-    padding: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    --x: -0.5rem;
-    --y: 50%;
-}
-.js-svg {
-    display: block;
-    width: 100%;
-    height: 100%;
-}
-.pointer-dot {
-    position: absolute;
-    top: 0;
-    left: 0;
-    width: 0.5rem;
-    height: 0.5rem;
-    background: #ffffff;
-    border-radius: 50%;
-    transform: translate3d(calc(var(--x) - 50%), calc(var(--y) - 50%), 0);
-    will-change: transform;
-    pointer-events: none;
 }
 
 /* Glass Panel Utility */
