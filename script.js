@@ -389,8 +389,17 @@ function setupEventListeners() {
     const txSearch = document.getElementById('tx-search');
     if (txSearch) txSearch.addEventListener('input', renderTransactions);
     
-    const txFilter = document.getElementById('tx-filter');
-    if (txFilter) txFilter.addEventListener('change', renderTransactions);
+    const txTypeFilter = document.getElementById('tx-type-filter');
+    if (txTypeFilter) txTypeFilter.addEventListener('change', renderTransactions);
+
+    const txCatFilter = document.getElementById('tx-category-filter');
+    if (txCatFilter) txCatFilter.addEventListener('change', renderTransactions);
+
+    const txPinFilter = document.getElementById('tx-pin-filter');
+    if (txPinFilter) txPinFilter.addEventListener('change', renderTransactions);
+
+    const txSort = document.getElementById('tx-sort');
+    if (txSort) txSort.addEventListener('change', renderTransactions);
 
     const themeToggle = document.getElementById('theme-toggle');
     if (themeToggle) themeToggle.addEventListener('change', toggleTheme);
@@ -635,12 +644,32 @@ async function handleFormSubmit(e) {
 
 function renderAll() {
     calculateStats();
+    populateCategoryFilter();
     renderTransactions();
     renderRecent();
     drawChart();
     updateGoalsProgress();
     drawBalanceTrees();
     renderAchievements();
+}
+
+function populateCategoryFilter() {
+    const filter = document.getElementById('tx-category-filter');
+    if (!filter) return;
+    
+    // Save current selection
+    const currentVal = filter.value;
+    
+    // Get all unique categories from global config
+    const categories = [
+        ...CATEGORIES.expense.map(c => ({ ...c, type: 'expense' })),
+        ...CATEGORIES.income.map(c => ({ ...c, type: 'income' }))
+    ];
+    
+    filter.innerHTML = '<option value="all">All Categories</option>' + 
+        categories.map(c => `<option value="${c.id}">${c.label} (${c.type})</option>`).join('');
+    
+    filter.value = currentVal || 'all';
 }
 
 async function checkBadges() {
@@ -704,23 +733,42 @@ function renderTransactions() {
     if (!container) return;
     
     const searchTerm = document.getElementById('tx-search')?.value.toLowerCase() || '';
-    const filterType = document.getElementById('tx-filter')?.value || 'all';
+    const typeFilter = document.getElementById('tx-type-filter')?.value || 'all';
+    const catFilter = document.getElementById('tx-category-filter')?.value || 'all';
+    const pinFilter = document.getElementById('tx-pin-filter')?.value || 'all';
+    const sortVal = document.getElementById('tx-sort')?.value || 'newest';
     
     let filtered = transactions.filter(tx => {
         const cat = CATEGORIES[tx.type].find(c => c.id === tx.categoryId) || { label: '' };
-        const matchesSearch = tx.note?.toLowerCase().includes(searchTerm) || cat.label.toLowerCase().includes(searchTerm);
-        const matchesFilter = filterType === 'all' || tx.type === filterType;
-        return matchesSearch && matchesFilter;
+        
+        // Search note, category, or amount
+        const matchesSearch = 
+            (tx.note?.toLowerCase().includes(searchTerm)) || 
+            (cat.label.toLowerCase().includes(searchTerm)) || 
+            (tx.amount.toString().includes(searchTerm));
+            
+        const matchesType = typeFilter === 'all' || tx.type === typeFilter;
+        const matchesCat = catFilter === 'all' || tx.categoryId === catFilter;
+        const matchesPin = pinFilter === 'all' || (pinFilter === 'pinned' ? tx.isPinned : !tx.isPinned);
+        
+        return matchesSearch && matchesType && matchesCat && matchesPin;
+    });
+
+    // Sorting
+    filtered.sort((a, b) => {
+        if (sortVal === 'newest') return new Date(b.date) - new Date(a.date);
+        if (sortVal === 'oldest') return new Date(a.date) - new Date(b.date);
+        if (sortVal === 'highest') return b.amount - a.amount;
+        if (sortVal === 'lowest') return a.amount - b.amount;
+        return 0;
     });
 
     container.innerHTML = '';
-    const pinned = filtered.filter(t => t.isPinned).sort((a,b) => new Date(b.date) - new Date(a.date));
-    const others = filtered.filter(t => !t.isPinned).sort((a,b) => new Date(b.date) - new Date(a.date));
     
     if (filtered.length === 0) {
-        container.innerHTML = '<div class="text-center p-8 opacity-40">No transactions found matching your criteria.</div>';
+        container.innerHTML = '<div class="text-center p-12 opacity-40 fade-in">No transactions found matching your criteria.</div>';
     } else {
-        [...pinned, ...others].forEach(tx => container.appendChild(createTxEl(tx)));
+        filtered.forEach(tx => container.appendChild(createTxEl(tx)));
     }
     lucide.createIcons();
 }
