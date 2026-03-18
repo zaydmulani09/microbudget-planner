@@ -105,8 +105,8 @@ async function dbDelete(storeName, key) {
 document.addEventListener('DOMContentLoaded', async () => {
     await initDB();
     await loadData();
+    initSpaceBackground();
     lucide.createIcons();
-    initWaves();
     setupEventListeners();
     setupTheming();
     setupDropZone();
@@ -150,135 +150,98 @@ function toggleTheme() {
     saveSettings();
 }
 
-// --- Waves Background Logic (Restored) ---
-let pT_noise2D = null;
-let pT_container = null;
-let pT_svg = null;
-let pT_pointer = null;
-let pT_mouse = { x: -10, y: 0, lx: 0, ly: 0, sx: 0, sy: 0, v: 0, vs: 0, a: 0, set: false };
-let pT_paths = [];
-let pT_lines = [];
-let pT_raf = null;
+// --- Space Background Logic ---
+let spaceCanvas, spaceCtx, stars = [], particles = [];
+let cursor = { x: 0, y: 0, targetX: 0, targetY: 0 };
 
-function initWaves() {
-    pT_container = document.getElementById('waves-bg');
-    pT_svg = document.getElementById('waves-svg');
-    pT_pointer = document.getElementById('waves-pointer');
-    if(!pT_container || !pT_svg) return;
-    pT_noise2D = createNoise2D();
-    pT_setSize();
-    pT_setLines();
-    window.addEventListener('resize', () => { pT_setSize(); pT_setLines(); });
-    window.addEventListener('mousemove', (e) => { pT_updateMousePosition(e.pageX, e.pageY); });
-    pT_container.addEventListener('touchmove', (e) => {
-        e.preventDefault();
-        const touch = e.touches[0];
-        pT_updateMousePosition(touch.clientX, touch.clientY);
-    }, { passive: false });
-    pT_raf = requestAnimationFrame(pT_tick);
-}
-
-function pT_setSize() {
-    if (!pT_container || !pT_svg) return;
-    const rect = pT_container.getBoundingClientRect();
-    pT_svg.style.width = `${rect.width}px`;
-    pT_svg.style.height = `${rect.height}px`;
-}
-
-function pT_setLines() {
-    if (!pT_container || !pT_svg) return;
-    const rect = pT_container.getBoundingClientRect();
-    const width = rect.width, height = rect.height;
-    pT_lines = [];
-    pT_paths.forEach(path => path.remove());
-    pT_paths = [];
-    const xGap = 8, yGap = 8;
-    const oWidth = width + 200, oHeight = height + 30;
-    const totalLines = Math.ceil(oWidth / xGap), totalPoints = Math.ceil(oHeight / yGap);
-    const xStart = (width - xGap * totalLines) / 2, yStart = (height - yGap * totalPoints) / 2;
-
-    for (let i = 0; i < totalLines; i++) {
-        const points = [];
-        for (let j = 0; j < totalPoints; j++) {
-            points.push({ x: xStart + xGap * i, y: yStart + yGap * j, wave: { x: 0, y: 0 }, cursor: { x: 0, y: 0, vx: 0, vy: 0 } });
-        }
-        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        path.classList.add('a__line', 'js-line');
-        path.setAttribute('fill', 'none');
-        path.setAttribute('stroke', '#ffffff');
-        path.setAttribute('stroke-width', '1');
-        pT_svg.appendChild(path);
-        pT_paths.push(path);
-        pT_lines.push(points);
-    }
-}
-
-function pT_updateMousePosition(x, y) {
-    if (!pT_container) return;
-    const rect = pT_container.getBoundingClientRect();
-    pT_mouse.x = x - rect.left;
-    pT_mouse.y = y - rect.top + window.scrollY;
-    if (!pT_mouse.set) {
-        pT_mouse.sx = pT_mouse.lx = pT_mouse.x;
-        pT_mouse.sy = pT_mouse.ly = pT_mouse.y;
-        pT_mouse.set = true;
-    }
-    pT_container.style.setProperty('--x', `${pT_mouse.sx}px`);
-    pT_container.style.setProperty('--y', `${pT_mouse.sy}px`);
-}
-
-function pT_movePoints(time) {
-    if (!pT_noise2D) return;
-    pT_lines.forEach(points => {
-        points.forEach(p => {
-            const move = pT_noise2D((p.x + time * 0.008) * 0.003, (p.y + time * 0.003) * 0.002) * 8;
-            p.wave.x = Math.cos(move) * 12;
-            p.wave.y = Math.sin(move) * 6;
-            const dx = p.x - pT_mouse.sx, dy = p.y - pT_mouse.sy, d = Math.hypot(dx, dy), l = Math.max(175, pT_mouse.vs);
-            if (d < l) {
-                const s = 1 - d / l, f = Math.cos(d * 0.001) * s;
-                p.cursor.vx += Math.cos(pT_mouse.a) * f * l * pT_mouse.vs * 0.00035;
-                p.cursor.vy += Math.sin(pT_mouse.a) * f * l * pT_mouse.vs * 0.00035;
-            }
-            p.cursor.vx += (0 - p.cursor.x) * 0.01;
-            p.cursor.vy += (0 - p.cursor.y) * 0.01;
-            p.cursor.vx *= 0.95; p.cursor.vy *= 0.95;
-            p.cursor.x += p.cursor.vx; p.cursor.y += p.cursor.vy;
-            p.cursor.x = Math.min(50, Math.max(-50, p.cursor.x));
-            p.cursor.y = Math.min(50, Math.max(-50, p.cursor.y));
+function initSpaceBackground() {
+    spaceCanvas = document.getElementById('space-canvas');
+    if (!spaceCanvas) return;
+    spaceCtx = spaceCanvas.getContext('2d');
+    resizeSpaceCanvas();
+    window.addEventListener('resize', resizeSpaceCanvas);
+    
+    // Create Stars
+    for (let i = 0; i < 400; i++) {
+        stars.push({
+            x: Math.random() * spaceCanvas.width,
+            y: Math.random() * spaceCanvas.height,
+            size: Math.random() * 1.5,
+            opacity: Math.random(),
+            speed: Math.random() * 0.05
         });
-    });
+    }
+    
+    // Create Particles
+    for (let i = 0; i < 100; i++) {
+        particles.push({
+            x: Math.random() * spaceCanvas.width,
+            y: Math.random() * spaceCanvas.height,
+            size: Math.random() * 2 + 1,
+            speedY: Math.random() * 0.5 + 0.2,
+            opacity: Math.random() * 0.5 + 0.2
+        });
+    }
+    
+    requestAnimationFrame(animateSpace);
 }
 
-function pT_moved(point, withCursorForce = true) {
-    return { x: point.x + point.wave.x + (withCursorForce ? point.cursor.x : 0), y: point.y + point.wave.y + (withCursorForce ? point.cursor.y : 0) };
+function resizeSpaceCanvas() {
+    spaceCanvas.width = window.innerWidth;
+    spaceCanvas.height = window.innerHeight;
 }
 
-function pT_drawLines() {
-    pT_lines.forEach((points, lIndex) => {
-        if (points.length < 2 || !pT_paths[lIndex]) return;
-        const firstPoint = pT_moved(points[0], false);
-        let d = `M ${firstPoint.x} ${firstPoint.y}`;
-        for (let i = 1; i < points.length; i++) {
-            const current = pT_moved(points[i]);
-            d += `L ${current.x} ${current.y}`;
+function animateSpace() {
+    spaceCtx.clearRect(0, 0, spaceCanvas.width, spaceCanvas.height);
+    
+    // Update cursor position for parallax
+    cursor.x += (cursor.targetX - cursor.x) * 0.1;
+    cursor.y += (cursor.targetY - cursor.y) * 0.1;
+    
+    // Apply parallax to background elements
+    const parallaxLayers = [
+         { el: document.querySelector('.aurora-layer'), factor: 0.02 },
+         { el: document.querySelector('.grid-floor'), factor: 0.05 },
+         { el: spaceCanvas, factor: 0.01 }
+    ];
+    
+    parallaxLayers.forEach(layer => {
+        if (layer.el) {
+            const tx = cursor.x * layer.factor;
+            const ty = cursor.y * layer.factor;
+            // Special handling for grid-floor which has an existing rotateX(65deg)
+            if (layer.el.classList.contains('grid-floor')) {
+                layer.el.style.transform = `rotateX(65deg) translate(${tx}px, ${ty}px)`;
+            } else {
+                layer.el.style.transform = `translate(${tx}px, ${ty}px)`;
+            }
         }
-        pT_paths[lIndex].setAttribute('d', d);
     });
-}
 
-function pT_tick(time) {
-    pT_mouse.sx += (pT_mouse.x - pT_mouse.sx) * 0.1;
-    pT_mouse.sy += (pT_mouse.y - pT_mouse.sy) * 0.1;
-    const dx = pT_mouse.x - pT_mouse.lx, dy = pT_mouse.y - pT_mouse.ly, d = Math.hypot(dx, dy);
-    pT_mouse.v = d;
-    pT_mouse.vs += (d - pT_mouse.vs) * 0.1;
-    pT_mouse.vs = Math.min(100, pT_mouse.vs);
-    pT_mouse.lx = pT_mouse.x; pT_mouse.ly = pT_mouse.y;
-    pT_mouse.a = Math.atan2(dy, dx);
-    pT_movePoints(time);
-    pT_drawLines();
-    pT_raf = requestAnimationFrame(pT_tick);
+    // Draw Stars
+    stars.forEach(star => {
+        star.opacity += (Math.random() - 0.5) * 0.02;
+        star.opacity = Math.max(0.1, Math.min(1, star.opacity));
+        spaceCtx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`;
+        spaceCtx.beginPath();
+        spaceCtx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+        spaceCtx.fill();
+    });
+    
+    // Draw Particles
+    particles.forEach(p => {
+        p.y -= p.speedY;
+        if (p.y < -10) p.y = spaceCanvas.height + 10;
+        spaceCtx.fillStyle = `rgba(0, 240, 255, ${p.opacity})`;
+        spaceCtx.shadowBlur = 5;
+        spaceCtx.shadowColor = 'rgba(0, 240, 255, 0.5)';
+        spaceCtx.beginPath();
+        spaceCtx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        spaceCtx.fill();
+        spaceCtx.shadowBlur = 0;
+    });
+    
+    requestAnimationFrame(animateSpace);
 }
 
 // --- Features Logic ---
@@ -290,6 +253,11 @@ function setupEventListeners() {
             targetBtn.classList.add('active');
             switchView(targetBtn.dataset.view);
         });
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        cursor.targetX = (e.clientX - window.innerWidth / 2);
+        cursor.targetY = (e.clientY - window.innerHeight / 2);
     });
 
     document.getElementById('tx-form').addEventListener('submit', handleFormSubmit);
