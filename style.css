@@ -449,6 +449,58 @@ input, select {
     100% { filter: brightness(1) drop-shadow(0 0 0 transparent); }
 }
 
+@keyframes unlock-bounce {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.2); filter: brightness(1.5); }
+    100% { transform: scale(1); }
+}
+
+.badge-item.new-unlock {
+    animation: unlock-bounce 0.8s var(--ease-futuristic);
+}
+
+.badge-item {
+    position: relative; /* For tooltip positioning */
+    cursor: help;
+}
+
+/* Tooltip System */
+.badge-tooltip {
+    position: absolute;
+    bottom: 120%;
+    left: 50%;
+    transform: translateX(-50%) translateY(10px);
+    width: 200px;
+    padding: 1rem;
+    background: var(--glass-bg);
+    backdrop-filter: blur(16px);
+    border: 1px solid var(--primary);
+    box-shadow: var(--glow-cyan);
+    border-radius: var(--radius-md);
+    z-index: 100;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s var(--ease-futuristic);
+    text-align: center;
+}
+
+.badge-item:hover .badge-tooltip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+}
+
+.tooltip-title {
+    font-weight: 700;
+    color: var(--primary);
+    margin-bottom: 0.25rem;
+    display: block;
+}
+
+.tooltip-desc {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
 .badge-icon {
     width: 64px; height: 64px;
     background: var(--glass-bg);
