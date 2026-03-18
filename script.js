@@ -31,10 +31,11 @@ const CATEGORIES = {
 };
 
 const BADGES_CONFIG = [
-    { id: 'first_tx', label: 'First Step', icon: 'star', description: 'Log your first transaction' },
-    { id: 'streak_3', label: 'Triple Threat', icon: 'flame', description: '3 day logging streak' },
-    { id: 'goal_met', icon: 'target', label: 'Visionary', description: 'Complete your first goal' },
-    { id: 'big_saver', icon: 'shield-check', label: 'Grand Master', description: 'Save over $1000' }
+    { id: 'first_tx', label: 'First Step', icon: 'star', description: 'Log your first transaction', test: () => transactions.length > 0 },
+    { id: 'streak_3', label: 'Triple Threat', icon: 'flame', description: '3 day logging streak', test: () => settings.streak >= 3 },
+    { id: 'goal_met', label: 'Visionary', icon: 'target', description: 'Complete your first goal', test: () => goals.some(g => g.currentProgress >= g.target) },
+    { id: 'big_saver', label: 'Grand Master', icon: 'shield-check', description: 'Log 50 transactions', test: () => transactions.length >= 50 },
+    { id: 'high_roller', label: 'High Roller', icon: 'trending-up', description: 'Single transaction over $1000', test: () => transactions.some(t => t.amount >= 1000) }
 ];
 
 const TUTORIAL_STEPS = [
@@ -575,6 +576,49 @@ function renderAll() {
     drawChart();
     updateGoalsProgress();
     drawBalanceTrees();
+    renderAchievements();
+}
+
+async function checkBadges() {
+    let newlyUnlocked = false;
+    for (const badge of BADGES_CONFIG) {
+        if (!badges.some(b => b.id === badge.id) && badge.test()) {
+            const unlockData = { id: badge.id, unlockedAt: Date.now() };
+            await dbPut('badges', unlockData);
+            badges.push(unlockData);
+            newlyUnlocked = true;
+            
+            // Trigger effects
+            spawnSparks(window.innerWidth / 2, window.innerHeight / 2, '#00f0ff');
+            // We could also add a notification here
+        }
+    }
+    if (newlyUnlocked) renderAchievements();
+}
+
+function renderAchievements() {
+    const container = document.getElementById('badges-list');
+    const streakVal = document.getElementById('streak-count');
+    if (streakVal) streakVal.innerText = `${settings.streak || 0} Day Streak`;
+    if (!container) return;
+    
+    container.innerHTML = BADGES_CONFIG.map(badge => {
+        const isUnlocked = badges.some(b => b.id === badge.id);
+        return `
+            <div class="badge-item ${isUnlocked ? 'unlocked' : ''}" data-badge="${badge.id}">
+                <div class="badge-icon">
+                    <i data-lucide="${badge.icon}"></i>
+                </div>
+                <span class="text-xs">${badge.label}</span>
+                <div class="badge-tooltip">
+                    <span class="tooltip-title">${badge.label}</span>
+                    <p class="tooltip-desc">${badge.description}</p>
+                    ${isUnlocked ? '<span class="text-xs text-green" style="margin-top:0.5rem; display:block;">Unlocked!</span>' : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+    lucide.createIcons();
 }
 
 function calculateStats() {
